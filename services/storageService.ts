@@ -1,18 +1,31 @@
-import { getDownloadURL, ref, uploadBytes, uploadString } from 'firebase/storage';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from './firebase';
 
 export const uploadImageAsync = async (uri: string, path: string): Promise<string> => {
     try {
         const storageRef = ref(storage, path);
 
-        if (uri.startsWith('data:')) {
-            // Safest method for React Native: Base64 Data URL string
-            await uploadString(storageRef, uri, 'data_url');
-        } else {
-            // Fallback for normal URIs
-            const response = await fetch(uri);
-            const blob = await response.blob();
-            await uploadBytes(storageRef, blob);
+        // วิธีที่เสถียรที่สุดใน React Native ในการแปลง URI เป็น Blob
+        const blob: any = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.onload = function () {
+                resolve(xhr.response);
+            };
+            xhr.onerror = function (e) {
+                console.error("XHR Error:", e);
+                reject(new TypeError("Network request failed"));
+            };
+            xhr.responseType = "blob";
+            xhr.open("GET", uri, true);
+            xhr.send(null);
+        });
+
+        // อัปโหลด Blob ขึ้น Firebase
+        await uploadBytes(storageRef, blob);
+
+        // ปิด Blob เพื่อคืนหน่วยความจำ (สำคัญใน React Native)
+        if (blob && blob.close) {
+            blob.close();
         }
 
         const downloadUrl = await getDownloadURL(storageRef);
